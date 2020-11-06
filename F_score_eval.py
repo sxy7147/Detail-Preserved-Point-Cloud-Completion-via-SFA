@@ -16,8 +16,8 @@ import typing
 def calculate_fscore(gt: open3d.geometry.PointCloud, pr: open3d.geometry.PointCloud, th: float = 0.01) -> typing.Tuple[
     float, float, float]:
     '''Calculates the F-score between two point clouds with the corresponding threshold value.'''
-    d1 = open3d.compute_point_cloud_to_point_cloud_distance(gt, pr)
-    d2 = open3d.compute_point_cloud_to_point_cloud_distance(pr, gt)
+    d1 = pr.compute_point_cloud_distance(gt)
+    d2 = gt.compute_point_cloud_distance(pr)
 
     if len(d1) and len(d2):
         recall = float(sum(d < th for d in d2)) / float(len(d2))
@@ -30,7 +30,7 @@ def calculate_fscore(gt: open3d.geometry.PointCloud, pr: open3d.geometry.PointCl
     else:
         fscore = 0
 
-    return fscore
+    return recall, precision, fscore
 
 class TrainProvider:
     def __init__(self, args, is_training):
@@ -77,7 +77,11 @@ def train(args):
         print(colored('Testing...', 'grey', 'on_green'))
         total_time = 0
         total_loss_fine = 0
+        total_recall = 0
+        total_precision = 0
         cd_per_cat = {}
+        recall_per_cat = {}
+        precision_per_cat = {}
         sess.run(tf.local_variables_initializer())
         for j in range(num_eval_steps):
             start = time.time()
@@ -86,19 +90,28 @@ def train(args):
             pc_gt = open3d.geometry.PointCloud()
             pc_pr = open3d.geometry.PointCloud()
             print(np.squeeze(gt_eval).shape)
-            pc_gt.points = open3d.Vector3dVector(np.squeeze(gt_eval))
-            pc_pr.points = open3d.Vector3dVector(np.squeeze(fine))
+            pc_gt.points = open3d.utility.Vector3dVector(np.squeeze(gt_eval))
+            pc_pr.points = open3d.utility.Vector3dVector(np.squeeze(fine))
 
-            f_score = calculate_fscore(pc_gt, pc_pr)
+            recall, precision, f_score = calculate_fscore(pc_gt, pc_pr)
             # print('f_score:', f_score)
 
             synset_id = str(ids_eval[0]).split('_')[0].split('\'')[1]
             total_loss_fine += f_score
+            total_recall += recall
+            total_precision += precision
             total_time += time.time() - start
 
             if not cd_per_cat.get(synset_id):
                 cd_per_cat[synset_id] = []
+            if not recall_per_cat.get(synset_id):
+                recall_per_cat[synset_id] = []
+            if not precision_per_cat.get(synset_id):
+                precision_per_cat[synset_id] = []
             cd_per_cat[synset_id].append(f_score)
+            recall_per_cat[synset_id].append(recall)
+            precision_per_cat[synset_id].append(precision)
+
 
             # if args.plot:
             #     for i in range(args.batch_size):
@@ -110,13 +123,15 @@ def train(args):
             #                              'CD %.4f' % (loss_fine),
             #                              [0.5, 0.5, 0.5])
         print('Average F_score: %f' % (total_loss_fine / num_eval_steps))
+        print('Average recall: %f' % (total_recall / num_eval_steps))
+        print('Average precision: %f' % (total_precision / num_eval_steps))
         print('F_score per category')
         dict_known = {'02691156': 'airplane','02933112': 'cabinet', '02958343': 'car', '03001627': 'chair', '03636649': 'lamp', '04256520': 'sofa',
                 '04379243' : 'table','04530566': 'vessel'}
         temp_loss=0
         for synset_id in dict_known.keys():
             temp_loss += np.mean(cd_per_cat[synset_id])
-            print(dict_known[synset_id], ' %f' % np.mean(cd_per_cat[synset_id]))
+            print(dict_known[synset_id], ' %f\t%f\t%f' % (np.mean(cd_per_cat[synset_id]), np.mean(recall_per_cat[synset_id]), np.mean(precision_per_cat[synset_id])))
         break
     print('Total time', datetime.timedelta(seconds=time.time() - start_time))
     coord.request_stop()

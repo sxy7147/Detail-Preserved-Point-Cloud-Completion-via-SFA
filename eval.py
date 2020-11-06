@@ -70,15 +70,26 @@ def train(args):
                 cd_per_cat[synset_id] = []
             cd_per_cat[synset_id].append(loss_fine)
 
-            if args.plot:
-                for i in range(args.batch_size):
-                    model_id = str(ids_eval[i]).split('_')[1]
-                    os.makedirs(os.path.join(args.save_path, 'plots', synset_id), exist_ok=True)
-                    plot_path = os.path.join(args.save_path, 'plots', synset_id, '%s.png' % model_id)
-                    plot_pcd_three_views(plot_path, [inputs_eval[i], fine[i], gt_eval[i]],
-                                         ['input', 'output', 'ground truth'],
-                                         'CD %.4f' % (loss_fine),
-                                         [0.5, 0.5, 0.5])
+            # output npz
+            if not os.path.exists(os.path.join(args.save_path, 'npzs', synset_id)):
+                os.makedirs(os.path.join(args.save_path, 'npzs', synset_id))
+            for i in range(args.batch_size):
+                model_id = str(ids_eval[i]).split('_')[1]
+                np.savez(os.path.join(args.save_path, 'npzs', synset_id, model_id + '.npz'), pts = fine[i])
+            # break
+
+
+
+            # plot
+            # if args.plot:
+            #     for i in range(args.batch_size):
+            #         model_id = str(ids_eval[i]).split('_')[1]
+            #         os.makedirs(os.path.join(args.save_path, 'plots', synset_id), exist_ok=True)
+            #         plot_path = os.path.join(args.save_path, 'plots', synset_id, '%s.png' % model_id)
+            #         plot_pcd_three_views(plot_path, [inputs_eval[i], fine[i], gt_eval[i]],
+            #                              ['input', 'output', 'ground truth'],
+            #                              'CD %.4f' % (loss_fine),
+            #                              [0.5, 0.5, 0.5])
         print('Average Chamfer distance: %f' % (total_loss_fine / num_eval_steps))
         print('Chamfer distance per category')
         dict_known = {'02691156': 'airplane','02933112': 'cabinet', '02958343': 'car', '03001627': 'chair', '03636649': 'lamp', '04256520': 'sofa',
@@ -97,9 +108,12 @@ def train(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--lmdb_test', default='data/shapenet/test.lmdb')
-    parser.add_argument('--model_type', default='rfa')
-    parser.add_argument('--model_path', default='data/trained_models/rfa')
-    parser.add_argument('--save_path', default='data/rfa')
+    # parser.add_argument('--model_type', default='rfa')
+    # parser.add_argument('--model_path', default='data/trained_models/rfa')
+    # parser.add_argument('--save_path', default='data/rfa')
+    parser.add_argument('--model_type', default='glfa')
+    parser.add_argument('--model_path', default='data/trained_models/glfa')
+    parser.add_argument('--save_path', default='data/glfa')
     parser.add_argument('--plot', default=False)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_input_points', type=int, default=2048)
