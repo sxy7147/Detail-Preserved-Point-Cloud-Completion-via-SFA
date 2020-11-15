@@ -43,6 +43,21 @@ class TrainProvider:
         self.batch_data = batch_test
 
 
+''' 读出前面已存的CD, EMD '''
+# score_dict = {}
+# score_dir = '/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/data/rfa/VAL_scores/03001627/scores2.txt'
+# score_dir2 = '/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/data/rfa/VAL_scores/03001627/scores3.txt'
+#
+# file = open(score_dir, 'r')
+# while True:
+#     line = file.readline()
+#     if line:
+#         line = line.split('\t')
+#         score_dict[line[0]] = [float(line[1]), float(line[2])]   # CD, EMD
+#     else:
+#         break
+
+
 def train(args):
     is_training_pl = tf.placeholder(tf.bool, shape=(), name='is_training')
     global_step = tf.Variable(0, trainable=False, name='global_step')
@@ -85,11 +100,13 @@ def train(args):
         sess.run(tf.local_variables_initializer())
         for j in range(num_eval_steps):
             start = time.time()
+
             ids_eval, inputs_eval, gt_eval, loss_fine, fine = sess.run([ids, inputs, gt, model.loss_fine, model.fine],
                                feed_dict={is_training_pl: False})
+
             pc_gt = open3d.geometry.PointCloud()
             pc_pr = open3d.geometry.PointCloud()
-            print(np.squeeze(gt_eval).shape)
+            # print(np.squeeze(gt_eval).shape)
             pc_gt.points = open3d.utility.Vector3dVector(np.squeeze(gt_eval))
             pc_pr.points = open3d.utility.Vector3dVector(np.squeeze(fine))
 
@@ -97,10 +114,10 @@ def train(args):
             # print('f_score:', f_score)
 
             synset_id = str(ids_eval[0]).split('_')[0].split('\'')[1]
-            total_loss_fine += f_score
-            total_recall += recall
-            total_precision += precision
-            total_time += time.time() - start
+
+            ''' 只算 chair '''
+            # if synset_id != '03001627':
+            #     continue
 
             if not cd_per_cat.get(synset_id):
                 cd_per_cat[synset_id] = []
@@ -113,6 +130,21 @@ def train(args):
             precision_per_cat[synset_id].append(precision)
 
 
+            ''' output scores '''
+            # model_id = str(ids_eval[0]).split('_')[1]
+            # if model_id[-1] == "'":
+            #     model_id = model_id[0: -1]
+            # print(model_id)
+            # total_loss_fine += f_score
+            # total_recall += recall
+            # total_precision += precision
+            # total_time += time.time() - start
+            #
+            # score_dict[model_id].append(precision)
+            # score_dict[model_id].append(recall)
+            # score_dict[model_id].append(f_score)
+
+
             # if args.plot:
             #     for i in range(args.batch_size):
             #         model_id = str(ids_eval[i]).split('_')[1]
@@ -122,12 +154,15 @@ def train(args):
             #                              ['input', 'output', 'ground truth'],
             #                              'CD %.4f' % (loss_fine),
             #                              [0.5, 0.5, 0.5])
-        print('Average F_score: %f' % (total_loss_fine / num_eval_steps))
-        print('Average recall: %f' % (total_recall / num_eval_steps))
-        print('Average precision: %f' % (total_precision / num_eval_steps))
+
+
+        # print('Average F_score: %f' % (total_loss_fine / num_eval_steps))
+        # print('Average recall: %f' % (total_recall / num_eval_steps))
+        # print('Average precision: %f' % (total_precision / num_eval_steps))
         print('F_score per category')
-        dict_known = {'02691156': 'airplane','02933112': 'cabinet', '02958343': 'car', '03001627': 'chair', '03636649': 'lamp', '04256520': 'sofa',
-                '04379243' : 'table','04530566': 'vessel'}
+        # dict_known = {'02691156': 'airplane','02933112': 'cabinet', '02958343': 'car', '03001627': 'chair', '03636649': 'lamp', '04256520': 'sofa',
+        #         '04379243' : 'table','04530566': 'vessel'}
+        dict_known = {'00': 'PartNet'}
         temp_loss=0
         for synset_id in dict_known.keys():
             temp_loss += np.mean(cd_per_cat[synset_id])
@@ -138,13 +173,23 @@ def train(args):
     coord.join(threads)
     sess.close()
 
+    ''' 存 CD + EMD + precision + recall + Fscore '''
+    # fw = open(score_dir2, 'w')
+    # for model_id in score_dict.keys():
+    #     print(model_id, score_dict[model_id])
+    #     fw.write('%s\t%s\t%s\t%s\t%s\t%s\n' % (model_id, score_dict[model_id][0], score_dict[model_id][1], score_dict[model_id][2], score_dict[model_id][3], score_dict[model_id][4]))  # model_id CD END precision recall fscore
+    # print(len(score_dict))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lmdb_test', default='data/shapenet/test.lmdb')
+    parser.add_argument('--lmdb_test', default='/home/wuruihai/PartNet_fps_test.lmdb')
     parser.add_argument('--model_type', default='rfa')
-    parser.add_argument('--model_path', default='data/trained_models/rfa')
-    parser.add_argument('--save_path', default='data/rfa')
+    parser.add_argument('--model_path', default='/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/log/partnet_rfa/model-158000')
+    parser.add_argument('--save_path', default='/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/log/partnet_rfa/eval')
+    # parser.add_argument('--model_type', default='glfa')
+    # parser.add_argument('--model_path', default='data/trained_models/glfa')
+    # parser.add_argument('--save_path', default='data/glfa')
     parser.add_argument('--plot', default=False)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_input_points', type=int, default=2048)
