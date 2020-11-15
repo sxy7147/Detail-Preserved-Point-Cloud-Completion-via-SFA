@@ -90,20 +90,30 @@ def train(args):
             ''' output npz '''
             if not os.path.exists(os.path.join(args.save_path, 'TEST_npzs', synset_id)):
                 os.makedirs(os.path.join(args.save_path, 'TEST_npzs', synset_id))
+            partial_dict = {}
             for i in range(args.batch_size):
                 model_id = str(ids_eval[i]).split('_')[1]
-                np.savez(os.path.join(args.save_path, 'TEST_npzs', synset_id, model_id + '.npz'), pts=fine[i])
+                if model_id in partial_dict.keys():
+                    partial_dict[model_id] += 1
+                else:
+                    partial_dict[model_id] = 0
+                np.savez(os.path.join(args.save_path, 'TEST_npzs', synset_id, model_id + '_%d.npz' % partial_dict[model_id]), pts=fine[i])
 
 
             ''' plot '''
             if args.plot:
+                partial_dict = {}
+                os.makedirs(os.path.join(args.save_path, 'plots', synset_id), exist_ok=True)
                 for i in range(args.batch_size):
                     model_id = str(ids_eval[i]).split('_')[1]
-                    os.makedirs(os.path.join(args.save_path, 'plots', synset_id), exist_ok=True)
-                    plot_path = os.path.join(args.save_path, 'plots', synset_id, '%s.png' % model_id)
+                    if model_id in partial_dict.keys():
+                        partial_dict[model_id] += 1
+                    else:
+                        partial_dict[model_id] = 0
+                    plot_path = os.path.join(args.save_path, 'plots', synset_id, '%s_view%d.png' % (model_id, partial_dict[model_id]))
                     plot_pcd_three_views(plot_path, [inputs_eval[i], fine[i], gt_eval[i]],
                                          ['input', 'output', 'ground truth'],
-                                         'CD %.4f' % (loss_fine),
+                                         'CD %.4f' % (loss_fine * 10000),
                                          [0.5, 0.5, 0.5])
 
 
@@ -133,7 +143,7 @@ def train(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lmdb_test', default='/home/wuruihai/PartNet_fps_test.lmdb')
+    parser.add_argument('--lmdb_test', default='/home/wuruihai/lmdb_detail/PartNet_fps_test.lmdb')
     parser.add_argument('--model_type', default='rfa')
     parser.add_argument('--model_path', default='/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/log/partnet_rfa/model-158000')
     parser.add_argument('--save_path', default='/home/wuruihai/Detail-Preserved-Point-Cloud-Completion-via-SFA/log/partnet_rfa/eval')
